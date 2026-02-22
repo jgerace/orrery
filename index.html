@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solar System Orrery</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #04060f;
+    --panel-bg: rgba(6, 10, 24, 0.85);
+    --border: rgba(100, 160, 255, 0.15);
+    --accent: #4a9eff;
+    --accent-dim: rgba(74, 158, 255, 0.4);
+    --text: #c8d8f0;
+    --text-dim: #5a7090;
+    --mono: 'Share Tech Mono', monospace;
+    --serif: 'Cormorant Garamond', serif;
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    overflow: hidden;
+  }
+
+  #canvas {
+    display: block;
+    position: fixed;
+    top: 0; left: 0;
+    cursor: grab;
+  }
+  #canvas:active { cursor: grabbing; }
+
+  /* ── UI panels ── */
+  #ui {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .panel {
+    pointer-events: all;
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  /* Title */
+  #title-block {
+    position: absolute;
+    top: 24px; left: 28px;
+    padding: 14px 20px;
+  }
+  #title-block h1 {
+    font-family: var(--serif);
+    font-weight: 300;
+    font-size: 1.55rem;
+    letter-spacing: 0.12em;
+    color: #e8f0ff;
+    line-height: 1;
+  }
+  #title-block .subtitle {
+    font-size: 0.62rem;
+    color: var(--text-dim);
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    margin-top: 5px;
+  }
+  #title-block .title-footer {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+    font-size: 0.58rem;
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  #title-block .title-footer a {
+    color: var(--accent);
+    text-decoration: none;
+    letter-spacing: 0.08em;
+    transition: color 0.2s;
+  }
+  #title-block .title-footer a:hover {
+    color: #fff;
+  }
+
+  /* Date display */
+  #date-display {
+    position: absolute;
+    top: 24px; right: 28px;
+    padding: 12px 18px;
+    text-align: right;
+  }
+  #date-display .label {
+    font-size: 0.58rem;
+    letter-spacing: 0.2em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+  #date-display #date-val {
+    font-size: 0.88rem;
+    color: var(--accent);
+    margin-top: 4px;
+  }
+  #date-display #jd-val {
+    font-size: 0.6rem;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+
+  /* Controls */
+  #controls {
+    position: absolute;
+    bottom: 28px; left: 50%;
+    transform: translateX(-50%);
+    padding: 14px 22px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    white-space: nowrap;
+  }
+
+  .ctrl-label {
+    font-size: 0.6rem;
+    letter-spacing: 0.18em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+
+  .btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    padding: 6px 14px;
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s, background 0.2s;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.active { background: var(--accent-dim); border-color: var(--accent); color: #fff; }
+
+  #speed-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 130px;
+    height: 2px;
+    background: var(--border);
+    outline: none;
+    cursor: pointer;
+  }
+  #speed-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 0 8px var(--accent);
+  }
+  #speed-val {
+    font-size: 0.7rem;
+    color: var(--accent);
+    min-width: 60px;
+  }
+
+  /* Planet legend */
+  #legend {
+    position: absolute;
+    bottom: 28px; right: 28px;
+    padding: 14px 18px;
+  }
+  #legend .leg-title {
+    font-size: 0.58rem;
+    letter-spacing: 0.2em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .leg-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-bottom: 6px;
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    color: var(--text);
+  }
+  .leg-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* Tooltip */
+  #tooltip {
+    position: fixed;
+    pointer-events: none;
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(8px);
+    padding: 10px 14px;
+    font-size: 0.68rem;
+    line-height: 1.7;
+    display: none;
+    z-index: 20;
+    min-width: 160px;
+  }
+  #tooltip .tip-name {
+    font-family: var(--serif);
+    font-size: 1rem;
+    font-weight: 300;
+    color: #e8f0ff;
+    letter-spacing: 0.06em;
+    margin-bottom: 4px;
+  }
+  #tooltip .tip-row { color: var(--text-dim); }
+  #tooltip .tip-val { color: var(--text); }
+
+  /* Date picker modal */
+  #date-modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(2,4,12,0.7);
+    backdrop-filter: blur(4px);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    pointer-events: all;
+  }
+  #date-modal-overlay.open { display: flex; }
+  #date-modal {
+    background: rgba(6,10,24,0.97);
+    border: 1px solid var(--border);
+    padding: 28px 32px;
+    min-width: 280px;
+    text-align: center;
+  }
+  #date-modal h2 {
+    font-family: var(--serif);
+    font-weight: 300;
+    font-size: 1.1rem;
+    letter-spacing: 0.12em;
+    color: #e8f0ff;
+    margin-bottom: 18px;
+  }
+  #date-input {
+    background: rgba(10,16,40,0.9);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    padding: 8px 12px;
+    width: 100%;
+    outline: none;
+    margin-bottom: 16px;
+    color-scheme: dark;
+  }
+  #date-input:focus { border-color: var(--accent); }
+  .modal-btns { display: flex; gap: 10px; justify-content: center; }
+
+  /* Legend dwarf planet section */
+  .leg-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 8px 0;
+  }
+  .leg-row.dimmed { opacity: 0.4; }
+  .leg-row.dwarf .leg-dot {
+    border-radius: 2px; /* square-ish dot to distinguish */
+  }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+
+<div id="ui">
+  <div id="title-block" class="panel">
+    <h1>ORRERY</h1>
+    <div class="subtitle">Solar System — Heliocentric View</div>
+    <div class="title-footer">
+      <span>© 2026 <a href="https://www.johngerace.com" target="_blank" rel="noopener">John Gerace</a>. Licensed under <a href="https://www.gnu.org/licenses/gpl-3.0.html">GPL v3.0.</a></span>
+      <a href="https://github.com/jgerace/orrery" target="_blank" rel="noopener">View on GitHub</a>
+    </div>
+  </div>
+
+  <div id="date-display" class="panel">
+    <div class="label">Simulation Date</div>
+    <div id="date-val">—</div>
+    <div id="jd-val">JD —</div>
+  </div>
+
+  <div id="controls" class="panel">
+    <span class="ctrl-label">Time</span>
+    <button class="btn" id="btn-rev" title="Reverse">◀◀</button>
+    <button class="btn active" id="btn-play">&#9646;&#9646;</button>
+    <button class="btn" id="btn-fwd" title="Forward">▶▶</button>
+    <button class="btn" id="btn-now">NOW</button>
+    <button class="btn" id="btn-goto">GO TO DATE</button>
+    <span class="ctrl-label" style="margin-left:8px">Speed</span>
+    <input type="range" id="speed-slider" min="0" max="100" value="30">
+    <span id="speed-val">—</span>
+    <span class="ctrl-label" style="margin-left:8px">Scale</span>
+    <button class="btn" id="btn-log">LOG</button>
+    <button class="btn" id="btn-lin">LIN</button>
+    <span class="ctrl-label" style="margin-left:8px">View</span>
+    <button class="btn active" id="btn-belt">ASTEROID BELT</button>
+    <button class="btn active" id="btn-trojans">TROJANS</button>
+    <button class="btn active" id="btn-kuiper">KUIPER BELT</button>
+    <button class="btn" id="btn-dwarfs">DWARF PLANETS</button>
+  </div>
+
+  <div id="legend" class="panel">
+    <div class="leg-title">Planets</div>
+    <div id="legend-rows"></div>
+    <hr class="leg-divider" id="dwarf-divider" style="display:none">
+    <div id="dwarf-legend-rows"></div>
+  </div>
+
+  <div id="tooltip"></div>
+</div>
+
+<script src="orrery.js"></script>
+<!-- Date picker modal — outside #ui so pointer-events work correctly -->
+<div id="date-modal-overlay">
+  <div id="date-modal">
+    <h2>Go to Date</h2>
+    <input type="date" id="date-input">
+    <div class="modal-btns">
+      <button class="btn" id="btn-date-cancel">Cancel</button>
+      <button class="btn active" id="btn-date-go">Go</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
